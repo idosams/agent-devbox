@@ -27,7 +27,7 @@ jobs:
 
       - name: Install macOS test dependencies
         if: runner.os == 'macOS'
-        run: brew install shellcheck
+        run: brew install ripgrep shellcheck
 
       - name: Run test suite
         run: make test
