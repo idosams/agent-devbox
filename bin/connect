@@ -1,0 +1,37 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+source "$(dirname "${BASH_SOURCE[0]}")/_lib"
+root_dir="$(devbox_root)"
+name="$(devbox_name)"
+require_instance "$name"
+
+if ! multipass info "$name" | grep -q 'State:.*Running'; then
+  multipass start "$name"
+fi
+
+ip="$(devbox_ip "$name")"
+key="$root_dir/state/${name}_ed25519"
+known_hosts="$root_dir/state/known_hosts"
+if [[ -z "$ip" || ! -f "$key" ]]; then
+  echo 'Could not resolve the VM IP or its host key.' >&2
+  exit 1
+fi
+
+ssh_args=(
+  -tt
+  -i "$key"
+  -o IdentitiesOnly=yes
+  -o ForwardAgent=no
+  -o ClearAllForwardings=yes
+  -o StrictHostKeyChecking=accept-new
+  -o UserKnownHostsFile="$known_hosts"
+  "dev@$ip"
+)
+
+if (( $# == 0 )); then
+  exec ssh "${ssh_args[@]}"
+fi
+
+remote_command="$(printf '%q ' "$@")"
+exec ssh "${ssh_args[@]}" "$remote_command"

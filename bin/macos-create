@@ -1,0 +1,91 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+root_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+virtualbuddy_app="${VIRTUALBUDDY_APP_PATH:-/Applications/VirtualBuddy.app}"
+
+if [[ ! -d "$virtualbuddy_app" ]]; then
+  echo 'VirtualBuddy is not installed. Run make macos-install first.' >&2
+  exit 1
+fi
+
+host_memory_bytes="$(sysctl -n hw.memsize 2>/dev/null || true)"
+if [[ ! "$host_memory_bytes" =~ ^[0-9]+$ ]]; then
+  host_memory_gib=''
+  if command -v system_profiler >/dev/null 2>&1; then
+    host_memory_gib="$(system_profiler SPHardwareDataType 2>/dev/null | awk -F': ' '/Memory:/ { print $2; exit }' | awk '{ print $1 }')"
+  fi
+  if [[ "$host_memory_gib" =~ ^[0-9]+$ ]]; then
+    host_memory_bytes="$((host_memory_gib * 1024 * 1024 * 1024))"
+  else
+    host_memory_bytes=17179869184
+  fi
+fi
+host_memory_gib="$((host_memory_bytes / 1024 / 1024 / 1024))"
+
+host_cpus="$(sysctl -n hw.logicalcpu 2>/dev/null || true)"
+if [[ ! "$host_cpus" =~ ^[0-9]+$ ]]; then
+  host_cpus=''
+  if command -v system_profiler >/dev/null 2>&1; then
+    host_cpus="$(system_profiler SPHardwareDataType 2>/dev/null | awk -F': ' '/Total Number of Cores:/ { print $2; exit }' | awk '{ print $1 }')"
+  fi
+fi
+[[ "$host_cpus" =~ ^[0-9]+$ ]] || host_cpus=8
+
+if (( host_memory_gib <= 8 )); then
+  default_memory_gib=4
+elif (( host_memory_gib <= 16 )); then
+  default_memory_gib=8
+elif (( host_memory_gib <= 24 )); then
+  default_memory_gib=12
+else
+  default_memory_gib=16
+fi
+
+default_cpus=$((host_cpus - 2))
+(( default_cpus > 6 )) && default_cpus=6
+(( default_cpus < 2 )) && default_cpus=2
+
+cpus="${MACOS_VM_CPUS:-$default_cpus}"
+memory_gib="${MACOS_VM_MEMORY_GIB:-$default_memory_gib}"
+disk_gib="${MACOS_VM_DISK_GIB:-100}"
+vm_name="${MACOS_VM_NAME:-Agent Mac}"
+
+for value_name in cpus memory_gib disk_gib; do
+  value="${!value_name}"
+  if [[ ! "$value" =~ ^[0-9]+$ ]] || (( value < 1 )); then
+    echo "Invalid $value_name value '$value'; use a positive integer." >&2
+    exit 2
+  fi
+done
+if [[ "$vm_name" == *$'\n'* || -z "$vm_name" ]]; then
+  echo 'MACOS_VM_NAME must be a non-empty, single-line name.' >&2
+  exit 2
+fi
+
+cat <<EOF
+Create a VM named "$vm_name" with these settings:
+
+  OS:          latest stable macOS supported by this host
+  CPU:         $cpus cores
+  Memory:      $memory_gib GB
+  Disk:        $disk_gib GB sparse
+  Network:     Shared/NAT (never Bridged)
+  Guest App:   Off
+  Shared dirs: None
+  Clipboard:   Off
+  Microphone:  Off
+  USB:         None
+
+During macOS Setup Assistant:
+  - do not sign in to an Apple Account
+  - create the administrator account "vm-admin"
+  - disable Location Services, analytics, Siri, and FileVault recovery via iCloud
+
+Then follow the "First boot" section of macos/README.md.
+EOF
+
+if [[ "${AGENT_DEVBOX_NO_OPEN:-0}" != 1 ]]; then
+  open -a VirtualBuddy
+fi
+printf '\nRunbook: %s/macos/README.md\n' "$root_dir"

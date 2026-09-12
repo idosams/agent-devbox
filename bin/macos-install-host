@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+if [[ "$(uname -s)" != Darwin || "$(uname -m)" != arm64 ]]; then
+  echo 'The macOS profile requires an Apple-silicon Mac.' >&2
+  exit 1
+fi
+
+if ! command -v brew >/dev/null 2>&1; then
+  echo 'Homebrew is required to install the signed VirtualBuddy release.' >&2
+  echo 'Install it from https://brew.sh and rerun make macos-install.' >&2
+  exit 1
+fi
+
+virtualbuddy_app="${VIRTUALBUDDY_APP_PATH:-/Applications/VirtualBuddy.app}"
+
+if [[ -d "$virtualbuddy_app" ]]; then
+  echo 'VirtualBuddy is already installed.'
+  exit 0
+fi
+
+echo 'Installing VirtualBuddy from the Homebrew cask...'
+brew install --cask virtualbuddy
+echo 'Installed. Continue with: make macos-create'

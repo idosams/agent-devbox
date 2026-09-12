@@ -1,0 +1,460 @@
+#cloud-config
+hostname: agent-devbox
+manage_etc_hosts: true
+package_update: true
+package_upgrade: true
+ssh_pwauth: false
+disable_root: true
+
+groups:
+  - developers
+
+users:
+  - default
+  - name: dev
+    gecos: Agent Devbox User
+    shell: /bin/bash
+    lock_passwd: true
+    groups: [developers]
+    ssh_authorized_keys:
+      - __SSH_PUBLIC_KEY__
+  - name: codex-agent
+    shell: /bin/bash
+    lock_passwd: true
+    groups: [developers]
+  - name: claude-agent
+    shell: /bin/bash
+    lock_passwd: true
+    groups: [developers]
+  - name: gemini-agent
+    shell: /bin/bash
+    lock_passwd: true
+    groups: [developers]
+  - name: copilot-agent
+    shell: /bin/bash
+    lock_passwd: true
+    groups: [developers]
+
+packages:
+  - acl
+  - bash-completion
+  - bubblewrap
+  - build-essential
+  - ca-certificates
+  - curl
+  - direnv
+  - fd-find
+  - fzf
+  - gh
+  - git
+  - git-lfs
+  - gnupg
+  - gnome-keyring
+  - gnome-terminal
+  - golang-go
+  - htop
+  - jq
+  - libsecret-1-0
+  - libsecret-tools
+  - make
+  - neovim
+  - openssh-server
+  - pipx
+  - podman
+  - python3
+  - python3-pip
+  - python3-venv
+  - ripgrep
+  - rsync
+  - rustc
+  - cargo
+  - shellcheck
+  - socat
+  - tmux
+  - tree
+  - uidmap
+  - ufw
+  - ubuntu-desktop
+  - unattended-upgrades
+  - unzip
+  - vim
+  - xorgxrdp
+  - xrdp
+  - zsh
+  - zip
+
+snap:
+  commands:
+    - snap install node --classic --channel=22
+
+write_files:
+  - path: /etc/ssh/sshd_config.d/90-agent-devbox.conf
+    owner: root:root
+    permissions: '0644'
+    content: |
+      PasswordAuthentication no
+      KbdInteractiveAuthentication no
+      PermitRootLogin no
+      AllowUsers ubuntu dev codex-agent claude-agent gemini-agent copilot-agent
+      AllowAgentForwarding no
+      AllowTcpForwarding local
+      GatewayPorts no
+      PermitTunnel no
+      X11Forwarding no
+      MaxAuthTries 3
+      Match User dev,codex-agent,claude-agent,gemini-agent,copilot-agent
+          AuthorizedKeysFile /etc/ssh/authorized_keys/%u
+  - path: /etc/ssh/authorized_keys/dev
+    owner: root:root
+    permissions: '0644'
+    content: |
+      __SSH_PUBLIC_KEY__
+  - path: /etc/ssh/authorized_keys/codex-agent
+    owner: root:root
+    permissions: '0644'
+    content: |
+      __SSH_PUBLIC_KEY__
+  - path: /etc/ssh/authorized_keys/claude-agent
+    owner: root:root
+    permissions: '0644'
+    content: |
+      __SSH_PUBLIC_KEY__
+  - path: /etc/ssh/authorized_keys/gemini-agent
+    owner: root:root
+    permissions: '0644'
+    content: |
+      __SSH_PUBLIC_KEY__
+  - path: /etc/ssh/authorized_keys/copilot-agent
+    owner: root:root
+    permissions: '0644'
+    content: |
+      __SSH_PUBLIC_KEY__
+  - path: /etc/sudoers.d/agent-runners
+    owner: root:root
+    permissions: '0440'
+    content: |
+      Defaults:dev env_reset,always_set_home
+      dev ALL=(codex-agent) NOPASSWD: /opt/agent-cli/bin/codex-real *
+      dev ALL=(claude-agent) NOPASSWD: /usr/bin/claude *
+      dev ALL=(gemini-agent) NOPASSWD: /opt/agent-cli/bin/gemini *
+      dev ALL=(copilot-agent) NOPASSWD: /opt/agent-cli/bin/copilot *
+  - path: /usr/local/bin/codex
+    owner: root:root
+    permissions: '0755'
+    content: |
+      #!/usr/bin/env bash
+      set -euo pipefail
+      if [[ "$(id -un)" == codex-agent ]]; then
+        exec /opt/agent-cli/bin/codex-real "$@"
+      fi
+      exec sudo -u codex-agent -H /opt/agent-cli/bin/codex-real "$@"
+  - path: /usr/local/bin/claude
+    owner: root:root
+    permissions: '0755'
+    content: |
+      #!/usr/bin/env bash
+      set -euo pipefail
+      if [[ "$(id -un)" == claude-agent ]]; then
+        exec /usr/bin/claude "$@"
+      fi
+      exec sudo -u claude-agent -H /usr/bin/claude "$@"
+  - path: /usr/local/bin/gemini
+    owner: root:root
+    permissions: '0755'
+    content: |
+      #!/usr/bin/env bash
+      set -euo pipefail
+      if [[ "$(id -un)" == gemini-agent ]]; then
+        exec /opt/agent-cli/bin/gemini "$@"
+      fi
+      exec sudo -u gemini-agent -H /opt/agent-cli/bin/gemini "$@"
+  - path: /usr/local/bin/copilot
+    owner: root:root
+    permissions: '0755'
+    content: |
+      #!/usr/bin/env bash
+      set -euo pipefail
+      if [[ "$(id -un)" == copilot-agent ]]; then
+        exec /opt/agent-cli/bin/copilot "$@"
+      fi
+      exec sudo -u copilot-agent -H /opt/agent-cli/bin/copilot "$@"
+  - path: /usr/local/bin/agent-auth
+    owner: root:root
+    permissions: '0755'
+    content: |
+      #!/usr/bin/env bash
+      set -euo pipefail
+      provider="${1:-}"
+      case "$provider" in
+        codex)
+          exec codex login --device-auth
+          ;;
+        claude)
+          exec claude
+          ;;
+        gemini)
+          exec gemini
+          ;;
+        copilot)
+          exec copilot
+          ;;
+        github)
+          exec gh auth login --git-protocol ssh --web
+          ;;
+        "")
+          printf '%s\n' \
+            'Authenticate one provider at a time:' \
+            '  agent-auth codex' \
+            '  agent-auth claude' \
+            '  agent-auth gemini' \
+            '  agent-auth copilot' \
+            '  agent-auth github'
+          ;;
+        *)
+          printf 'Unknown provider: %s\n' "$provider" >&2
+          exit 2
+          ;;
+      esac
+  - path: /usr/local/bin/agent-devbox-update
+    owner: root:root
+    permissions: '0755'
+    content: |
+      #!/usr/bin/env bash
+      set -euo pipefail
+      if [[ ${EUID} -ne 0 ]]; then
+        echo 'Run from the host: multipass exec agent-devbox -- sudo agent-devbox-update' >&2
+        exit 1
+      fi
+      apt-get update
+      DEBIAN_FRONTEND=noninteractive apt-get upgrade -y
+      sudo -u codex-agent -H bash -c 'curl -fsSL https://chatgpt.com/codex/install.sh | sh'
+      codex_path="$(sudo -u codex-agent -H bash -c 'PATH="$HOME/.local/bin:$PATH" command -v codex')"
+      test -n "$codex_path"
+      ln -sfn "$codex_path" /opt/agent-cli/bin/codex-real
+      /snap/bin/npm install --global --prefix /opt/agent-cli @google/gemini-cli@latest @github/copilot@latest
+      codex --version
+      /usr/bin/claude --version
+      /opt/agent-cli/bin/gemini --version
+      /opt/agent-cli/bin/copilot --version
+  - path: /usr/local/sbin/agent-devbox-rdp-credential
+    owner: root:root
+    permissions: '0750'
+    content: |
+      #!/usr/bin/env bash
+      set -euo pipefail
+      if [[ ${EUID} -ne 0 ]]; then
+        echo 'This command must run as root.' >&2
+        exit 1
+      fi
+      user="${1:-}"
+      case "$user" in
+        dev|codex-agent|claude-agent) ;;
+        *)
+          echo 'Usage: agent-devbox-rdp-credential dev|codex-agent|claude-agent' >&2
+          exit 2
+          ;;
+      esac
+      awk -F: -v requested="$user" '$1 == requested { print $2; found=1 } END { exit !found }' \
+        /var/lib/agent-devbox/rdp-credentials
+  - path: /usr/local/sbin/agent-devbox-gui-setup
+    owner: root:root
+    permissions: '0750'
+    content: |
+      #!/usr/bin/env bash
+      set -euo pipefail
+      if [[ ${EUID} -ne 0 ]]; then
+        echo 'This command must run as root.' >&2
+        exit 1
+      fi
+      export DEBIAN_FRONTEND=noninteractive
+
+      install -d -m 0755 /usr/share/keyrings /var/lib/agent-devbox
+
+      curl -fsSLo /usr/share/keyrings/claude-desktop-archive-keyring.asc \
+        https://downloads.claude.ai/claude-desktop/key.asc
+      fingerprint="$(gpg --show-keys --with-colons \
+        /usr/share/keyrings/claude-desktop-archive-keyring.asc | \
+        awk -F: '$1 == "fpr" { print $10; exit }')"
+      test "$fingerprint" = '31DDDE24DDFAB679F42D7BD2BAA929FF1A7ECACE'
+      printf '%s\n' \
+        'deb [arch=amd64,arm64 signed-by=/usr/share/keyrings/claude-desktop-archive-keyring.asc] https://downloads.claude.ai/claude-desktop/apt/stable stable main' \
+        > /etc/apt/sources.list.d/claude-desktop.list
+
+      architecture="$(dpkg --print-architecture)"
+      case "$architecture" in
+        amd64|arm64) ;;
+        *)
+          echo "Unsupported desktop architecture: $architecture" >&2
+          exit 1
+          ;;
+      esac
+      curl -fL --retry 3 --output /tmp/chatgpt.deb \
+        "https://persistent.oaistatic.com/codex-app-prod/linux/deb/latest/chatgpt_${architecture}.deb"
+
+      apt-get update
+      apt-get install -y /tmp/chatgpt.deb claude-desktop
+      rm -f /tmp/chatgpt.deb
+      command -v chatgpt >/dev/null
+      command -v claude-desktop >/dev/null
+
+      sed -ri 's/^port=.*/port=3389/' /etc/xrdp/xrdp.ini
+      sed -ri 's/^security_layer=.*/security_layer=tls/' /etc/xrdp/xrdp.ini
+      sed -ri 's/^crypt_level=.*/crypt_level=high/' /etc/xrdp/xrdp.ini
+      sed -ri 's/^allow_channels=.*/allow_channels=false/' /etc/xrdp/xrdp.ini
+      sed -ri 's/^AllowRootLogin=.*/AllowRootLogin=false/' /etc/xrdp/sesman.ini
+      sed -ri 's/^MaxLoginRetry=.*/MaxLoginRetry=3/' /etc/xrdp/sesman.ini
+      adduser xrdp ssl-cert
+      systemctl disable --now gdm3 || true
+
+      credentials=/var/lib/agent-devbox/rdp-credentials
+      : > "$credentials"
+      chmod 0600 "$credentials"
+      for user in dev codex-agent claude-agent; do
+        password="$(openssl rand -base64 24)"
+        printf '%s:%s\n' "$user" "$password" | chpasswd
+        chage -M 3650 "$user"
+        printf '%s:%s\n' "$user" "$password" >> "$credentials"
+        install -d -m 0700 -o "$user" -g "$user" \
+          "/home/$user/.config" "/home/$user/.local/share"
+        printf '%s\n' 'gnome-session' > "/home/$user/.xsession"
+        chown "$user:$user" "/home/$user/.xsession"
+        chmod 0600 "/home/$user/.xsession"
+        touch "/home/$user/.config/gnome-initial-setup-done"
+        chown "$user:$user" "/home/$user/.config/gnome-initial-setup-done"
+        sudo -u "$user" -H dbus-run-session -- \
+          gsettings set org.gnome.desktop.session idle-delay 0 || true
+        sudo -u "$user" -H dbus-run-session -- \
+          gsettings set org.gnome.desktop.screensaver lock-enabled false || true
+      done
+
+      if getent group kvm >/dev/null; then
+        usermod -aG kvm claude-agent
+      fi
+
+      host_gateway="$(ip route show default | awk '{ print $3; exit }')"
+      test -n "$host_gateway"
+      ufw allow from "$host_gateway" to any port 22 proto tcp
+      ufw allow from "$host_gateway" to any port 3389 proto tcp
+      systemctl enable xrdp
+      systemctl restart xrdp
+  - path: /usr/local/bin/agent-harness-autostart
+    owner: root:root
+    permissions: '0755'
+    content: |
+      #!/usr/bin/env bash
+      set -euo pipefail
+      case "$(id -un)" in
+        codex-agent)
+          exec chatgpt
+          ;;
+        claude-agent)
+          exec claude-desktop
+          ;;
+        *)
+          exit 0
+          ;;
+      esac
+  - path: /etc/xdg/autostart/agent-harness.desktop
+    owner: root:root
+    permissions: '0644'
+    content: |
+      [Desktop Entry]
+      Type=Application
+      Name=Agent Harness
+      Exec=/usr/local/bin/agent-harness-autostart
+      Terminal=false
+      X-GNOME-Autostart-enabled=true
+  - path: /etc/profile.d/agent-devbox.sh
+    owner: root:root
+    permissions: '0644'
+    content: |
+      umask 0002
+      export EDITOR=nvim
+      export VISUAL=nvim
+      export PATH="/snap/bin:$PATH"
+  - path: /usr/local/share/agent-devbox/codex-config.toml
+    owner: root:root
+    permissions: '0644'
+    content: |
+      approval_policy = "on-request"
+      sandbox_mode = "workspace-write"
+      cli_auth_credentials_store = "auto"
+      allow_login_shell = false
+
+      [sandbox_workspace_write]
+      network_access = true
+
+      [shell_environment_policy]
+      ignore_default_excludes = false
+
+      [apps._default]
+      enabled = false
+  - path: /etc/claude-code/managed-settings.json
+    owner: root:root
+    permissions: '0644'
+    content: |
+      {
+        "$schema": "https://json.schemastore.org/claude-code-settings.json",
+        "permissions": {
+          "defaultMode": "default",
+          "disableBypassPermissionsMode": "disable",
+          "deny": [
+            "Read(~/.claude/**)",
+            "Read(./.env)",
+            "Read(./.env.*)",
+            "Read(./secrets/**)"
+          ]
+        },
+        "sandbox": {
+          "enabled": true,
+          "failIfUnavailable": true,
+          "allowUnsandboxedCommands": false,
+          "filesystem": {
+            "denyRead": ["~/.claude"]
+          }
+        },
+        "autoUpdatesChannel": "stable",
+        "strictKnownMarketplaces": []
+      }
+
+runcmd:
+  - [mkdir, -p, /workspaces, /opt/agent-cli, /etc/claude-code]
+  - [chown, 'dev:developers', /workspaces]
+  - [chmod, '2770', /workspaces]
+  - [setfacl, -m, 'g:developers:rwx', /workspaces]
+  - [setfacl, -m, 'd:u::rwx,d:g::rwx,d:o::---', /workspaces]
+  - [git, lfs, install, --system]
+  - [ln, -sfn, /snap/bin/node, /usr/local/bin/node]
+  - [ln, -sfn, /snap/bin/npm, /usr/local/bin/npm]
+  - [ln, -sfn, /snap/bin/npx, /usr/local/bin/npx]
+  - [bash, -lc, '/snap/bin/npm install --global --prefix /opt/agent-cli @google/gemini-cli@latest @github/copilot@latest']
+  - [bash, -lc, 'curl -fsSL https://downloads.claude.ai/keys/claude-code.asc -o /etc/apt/keyrings/claude-code.asc']
+  - [bash, -lc, "test \"$(gpg --show-keys --with-colons /etc/apt/keyrings/claude-code.asc | awk -F: '$1 == \"fpr\" { print $10; exit }')\" = '31DDDE24DDFAB679F42D7BD2BAA929FF1A7ECACE'"]
+  - [bash, -lc, "printf '%s\\n' 'deb [signed-by=/etc/apt/keyrings/claude-code.asc] https://downloads.claude.ai/claude-code/apt/stable stable main' > /etc/apt/sources.list.d/claude-code.list"]
+  - [apt-get, update]
+  - [apt-get, install, -y, claude-code]
+  - [bash, -lc, "sudo -u codex-agent -H bash -c 'curl -fsSL https://chatgpt.com/codex/install.sh | sh'"]
+  - [bash, -lc, "codex_path=\"$(sudo -u codex-agent -H bash -c 'PATH=\"$HOME/.local/bin:$PATH\" command -v codex')\" && test -n \"$codex_path\" && ln -sfn \"$codex_path\" /opt/agent-cli/bin/codex-real"]
+  - [install, -d, -m, '0700', -o, codex-agent, -g, codex-agent, /home/codex-agent/.codex]
+  - [install, -m, '0600', -o, codex-agent, -g, codex-agent, /usr/local/share/agent-devbox/codex-config.toml, /home/codex-agent/.codex/config.toml]
+  - [/usr/local/sbin/agent-devbox-gui-setup]
+  - [bash, -lc, "for user in dev codex-agent claude-agent gemini-agent copilot-agent; do install -d -m 0700 -o \"$user\" -g \"$user\" \"/home/$user/.config\"; sudo -u \"$user\" -H git config --global user.name \"$user\"; sudo -u \"$user\" -H git config --global user.email \"$user@agent-devbox.invalid\"; sudo -u \"$user\" -H git config --global --add safe.directory '/workspaces/*'; done"]
+  - [bash, -lc, "chmod 0700 /home/dev /home/codex-agent /home/claude-agent /home/gemini-agent /home/copilot-agent"]
+  - [bash, -lc, "printf '%s\\n' 'APT::Periodic::Update-Package-Lists \"1\";' 'APT::Periodic::Unattended-Upgrade \"1\";' > /etc/apt/apt.conf.d/20auto-upgrades"]
+  - [ufw, default, deny, incoming]
+  - [ufw, default, allow, outgoing]
+  - [ufw, allow, out, to, 10.0.0.0/8, port, '53', proto, udp]
+  - [ufw, allow, out, to, 10.0.0.0/8, port, '53', proto, tcp]
+  - [ufw, allow, out, to, 172.16.0.0/12, port, '53', proto, udp]
+  - [ufw, allow, out, to, 172.16.0.0/12, port, '53', proto, tcp]
+  - [ufw, allow, out, to, 192.168.0.0/16, port, '53', proto, udp]
+  - [ufw, allow, out, to, 192.168.0.0/16, port, '53', proto, tcp]
+  - [ufw, deny, out, to, 10.0.0.0/8]
+  - [ufw, deny, out, to, 172.16.0.0/12]
+  - [ufw, deny, out, to, 192.168.0.0/16]
+  - [ufw, deny, out, to, 169.254.169.254]
+  - [ufw, --force, enable]
+  - [systemctl, restart, ssh]
+  - [bash, -lc, "visudo -cf /etc/sudoers.d/agent-runners"]
+
+final_message: "Agent devbox provisioning complete after $UPTIME seconds"

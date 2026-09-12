@@ -1,0 +1,39 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+source "$(dirname "${BASH_SOURCE[0]}")/_lib"
+root_dir="$(devbox_root)"
+name="$(devbox_name)"
+require_instance "$name"
+
+if ! multipass info "$name" | grep -q 'State:.*Running'; then
+  multipass start "$name"
+fi
+ip="$(devbox_ip "$name")"
+key="$root_dir/state/${name}_ed25519"
+known_hosts="$root_dir/state/known_hosts"
+
+print_host() {
+  local alias="$1"
+  local user="$2"
+  printf '%s\n' \
+    "Host $alias" \
+    "  HostName $ip" \
+    "  User $user" \
+    "  IdentityFile \"$key\"" \
+    "  UserKnownHostsFile \"$known_hosts\"" \
+    '  IdentitiesOnly yes' \
+    '  PasswordAuthentication no' \
+    '  KbdInteractiveAuthentication no' \
+    '  ForwardAgent no' \
+    '  ForwardX11 no' \
+    '  StrictHostKeyChecking accept-new' \
+    '  ServerAliveInterval 30' \
+    ''
+}
+
+print_host "$name" dev
+print_host "$name-codex" codex-agent
+print_host "$name-claude" claude-agent
+print_host "$name-gemini" gemini-agent
+print_host "$name-copilot" copilot-agent

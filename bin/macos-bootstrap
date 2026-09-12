@@ -1,0 +1,63 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+root_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+guest_host="${MACOS_VM_HOST:-}"
+guest_user="${MACOS_VM_USER:-vm-admin}"
+known_hosts="$root_dir/state/macos_known_hosts"
+remote_script='/tmp/agent-devbox-bootstrap.sh'
+remote_config='/tmp/agent-devbox-codex-config.toml'
+remote_doctor='/tmp/agent-devbox-doctor.sh'
+
+if [[ -z "$guest_host" ]]; then
+  echo 'Usage: make macos-bootstrap HOST=<VM-IP> VM_USER=vm-admin' >&2
+  exit 2
+fi
+if [[ ! "$guest_host" =~ ^[a-zA-Z0-9][a-zA-Z0-9._:-]*$ ]]; then
+  echo "Invalid guest host '$guest_host'." >&2
+  exit 2
+fi
+if [[ ! "$guest_user" =~ ^[a-z_][a-z0-9_-]*$ ]]; then
+  echo "Invalid guest user '$guest_user'." >&2
+  exit 2
+fi
+
+mkdir -p "$root_dir/state"
+chmod 0700 "$root_dir/state"
+touch "$known_hosts"
+chmod 0600 "$known_hosts"
+
+ssh_opts=(
+  -o "UserKnownHostsFile=$known_hosts"
+  -o StrictHostKeyChecking=ask
+  -o ForwardAgent=no
+  -o ClearAllForwardings=yes
+)
+target="$guest_user@$guest_host"
+
+echo "Checking that $target is a macOS virtual machine..."
+remote_model="$(ssh "${ssh_opts[@]}" "$target" 'test "$(uname -s)" = Darwin && sysctl -n hw.model')"
+if [[ "$remote_model" != VirtualMac* ]]; then
+  echo "Refusing to provision '$remote_model'; expected a VirtualMac guest." >&2
+  exit 1
+fi
+
+echo 'Uploading the idempotent guest provisioner...'
+scp "${ssh_opts[@]}" "$root_dir/macos/guest-bootstrap.sh" "$target:$remote_script"
+scp "${ssh_opts[@]}" "$root_dir/macos/codex-config.toml" "$target:$remote_config"
+scp "${ssh_opts[@]}" "$root_dir/macos/guest-doctor.sh" "$target:$remote_doctor"
+
+echo 'Provisioning the guest. macOS may request the vm-admin password.'
+ssh -t "${ssh_opts[@]}" "$target" "chmod 0700 '$remote_script' '$remote_doctor'; CODEX_CONFIG_SOURCE='$remote_config' '$remote_script' && '$remote_doctor'; result=\$?; rm -f '$remote_script' '$remote_config' '$remote_doctor'; exit \$result"
+
+echo
+read -r -p 'Disable Remote Login in the guest now? [Y/n] ' answer
+if [[ ! "$answer" =~ ^[Nn]$ ]]; then
+  echo 'Disabling guest SSH. A connection-close message at the end is harmless.'
+  if ! ssh -t "${ssh_opts[@]}" "$target" 'sudo systemsetup -setremotelogin off'; then
+    echo 'WARNING: macOS may have kept Remote Login enabled.' >&2
+  fi
+  echo 'Verify that System Settings > General > Sharing > Remote Login is Off.'
+fi
+
+echo 'Guest provisioning is complete. Log in as agent and authenticate the apps inside the VM.'

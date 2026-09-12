@@ -1,0 +1,10 @@
+# Safe defaults for the standard `agent` account in the macOS VM.
+approval_policy = "on-request"
+sandbox_mode = "workspace-write"
+cli_auth_credentials_store = "keyring"
+
+[sandbox_workspace_write]
+network_access = true
+
+[apps._default]
+enabled = false

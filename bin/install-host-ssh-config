@@ -1,0 +1,72 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+source "$(dirname "${BASH_SOURCE[0]}")/_lib"
+root_dir="$(devbox_root)"
+name="$(devbox_name)"
+require_instance "$name"
+
+ssh_dir="$HOME/.ssh"
+host_config="$ssh_dir/config"
+fragment="$root_dir/state/${name}_ssh_config"
+include_line="Include \"$fragment\""
+
+umask 077
+mkdir -p "$ssh_dir" "$root_dir/state"
+chmod 0700 "$ssh_dir" "$root_dir/state"
+
+"$root_dir/bin/ssh-config" > "$fragment"
+chmod 0600 "$fragment"
+
+if [[ ! -f "$host_config" ]]; then
+  : > "$host_config"
+  chmod 0600 "$host_config"
+fi
+
+if ! grep -Fqx "$include_line" "$host_config"; then
+  backup="$host_config.agent-devbox-backup.$(date +%Y%m%d%H%M%S)"
+  cp -p "$host_config" "$backup"
+  temporary="$(mktemp "$ssh_dir/config.agent-devbox.XXXXXX")"
+  trap 'rm -f "$temporary"' EXIT
+  {
+    printf '%s\n\n' "$include_line"
+    command cat "$host_config"
+  } > "$temporary"
+  chmod 0600 "$temporary"
+  mv "$temporary" "$host_config"
+  trap - EXIT
+  echo "Added the devbox Include at the top of $host_config"
+  echo "Backup: $backup"
+else
+  echo "Refreshed $fragment"
+fi
+
+for alias in "$name" "$name-codex" "$name-claude" "$name-gemini" "$name-copilot"; do
+  ssh -G "$alias" >/dev/null
+done
+
+verify_identity() {
+  local alias="$1"
+  local expected="$2"
+  local actual
+  actual="$(ssh -o BatchMode=yes -o ConnectTimeout=10 "$alias" id -un)"
+  if [[ "$actual" != "$expected" ]]; then
+    echo "Identity check failed for $alias: expected $expected, got $actual" >&2
+    exit 1
+  fi
+}
+
+verify_identity "$name" dev
+verify_identity "$name-codex" codex-agent
+verify_identity "$name-claude" claude-agent
+verify_identity "$name-gemini" gemini-agent
+verify_identity "$name-copilot" copilot-agent
+
+echo
+echo 'Harness SSH targets are ready:'
+echo "  Codex / ChatGPT desktop: $name-codex"
+echo "  Claude Desktop Code:    $name-claude"
+echo "  Gemini CLI:             $name-gemini"
+echo "  Copilot CLI:            $name-copilot"
+echo "  Human Git/admin shell:  $name"
+echo 'Verified: each alias reaches its intended VM identity.'

@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+
+devbox_root() {
+  cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd
+}
+
+devbox_name() {
+  local name="${DEVBOX_NAME:-agent-devbox}"
+  if [[ ! "$name" =~ ^[a-zA-Z0-9][a-zA-Z0-9-]*$ ]]; then
+    echo "Invalid DEVBOX_NAME '$name'; use letters, numbers, and hyphens." >&2
+    return 2
+  fi
+  printf '%s\n' "$name"
+}
+
+devbox_ip() {
+  local name="$1"
+  multipass info "$name" | awk '/IPv4/ { print $2; exit }'
+}
+
+require_instance() {
+  local name="$1"
+  if ! multipass info "$name" >/dev/null 2>&1; then
+    echo "Multipass instance '$name' does not exist. Run 'make create'." >&2
+    exit 1
+  fi
+}

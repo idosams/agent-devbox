@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+source "$(dirname "${BASH_SOURCE[0]}")/_lib"
+name="$(devbox_name)"
+snapshot_name="${1:-pre-auth}"
+require_instance "$name"
+
+cat <<EOF
+This snapshot captures the full VM disk. If accounts are already authenticated,
+it will contain their tokens. Snapshot '$name/$snapshot_name' now? [y/N]
+EOF
+read -r answer
+if [[ "$answer" != 'y' && "$answer" != 'Y' ]]; then
+  echo 'Cancelled.'
+  exit 0
+fi
+multipass stop "$name"
+multipass snapshot "$name" --name "$snapshot_name"
+multipass start "$name"
+echo "Created snapshot $name/$snapshot_name"

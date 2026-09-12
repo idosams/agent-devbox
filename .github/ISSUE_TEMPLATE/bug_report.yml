@@ -1,0 +1,61 @@
+name: Bug report
+description: Report a reproducible setup or runtime problem without secrets.
+title: "[Bug]: "
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Do not attach `state/`, VM bundles, credentials, private keys, or unredacted logs.
+        Use the private security form for a possible vulnerability.
+  - type: dropdown
+    id: profile
+    attributes:
+      label: Profile
+      options:
+        - macOS + VirtualBuddy
+        - Ubuntu + Multipass
+        - Repository tests or documentation
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Agent Devbox version or commit
+      placeholder: v0.1.0 or commit SHA
+    validations:
+      required: true
+  - type: input
+    id: platform
+    attributes:
+      label: Host and guest platform
+      placeholder: M3 Pro, macOS 26 host, macOS 26 guest
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Reproduction steps
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior and redacted output
+    validations:
+      required: true
+  - type: checkboxes
+    id: safety
+    attributes:
+      label: Safety check
+      options:
+        - label: I removed credentials, private paths, keys, VM images, and account data.
+          required: true
+        - label: This is not a vulnerability report.
+          required: true

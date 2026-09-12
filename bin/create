@@ -1,0 +1,77 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+root_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+name="${DEVBOX_NAME:-agent-devbox}"
+
+if [[ ! "$name" =~ ^[a-zA-Z0-9][a-zA-Z0-9-]*$ ]]; then
+  echo "Invalid DEVBOX_NAME '$name'; use letters, numbers, and hyphens." >&2
+  exit 2
+fi
+
+if ! command -v multipass >/dev/null 2>&1; then
+  echo 'Multipass is required.' >&2
+  echo "Preferred: install Canonical's signed macOS package from:" >&2
+  echo '  https://canonical.com/multipass/install' >&2
+  echo 'Or, from an interactive terminal: brew install --cask multipass' >&2
+  exit 1
+fi
+
+host_memory_bytes="$(sysctl -n hw.memsize 2>/dev/null || printf '%s' 17179869184)"
+host_cpus="$(sysctl -n hw.logicalcpu 2>/dev/null || printf '%s' 8)"
+host_memory_gib="$(( host_memory_bytes / 1024 / 1024 / 1024 ))"
+
+if (( host_memory_gib <= 8 )); then
+  default_memory='4G'
+elif (( host_memory_gib <= 16 )); then
+  default_memory='8G'
+elif (( host_memory_gib <= 24 )); then
+  default_memory='12G'
+else
+  default_memory='16G'
+fi
+
+if (( host_cpus <= 4 )); then
+  default_cpus=2
+elif (( host_cpus <= 8 )); then
+  default_cpus=4
+else
+  default_cpus=6
+fi
+
+cpus="${DEVBOX_CPUS:-$default_cpus}"
+memory="${DEVBOX_MEMORY:-$default_memory}"
+disk="${DEVBOX_DISK:-100G}"
+state_dir="$root_dir/state"
+key="$state_dir/${name}_ed25519"
+rendered="$(mktemp -t agent-devbox-cloud-init.XXXXXX)"
+trap 'rm -f "$rendered"' EXIT
+
+if multipass info "$name" >/dev/null 2>&1; then
+  echo "Multipass instance '$name' already exists." >&2
+  echo "Use 'make shell' or choose another DEVBOX_NAME." >&2
+  exit 1
+fi
+
+mkdir -p "$state_dir"
+chmod 0700 "$state_dir"
+if [[ ! -f "$key" ]]; then
+  ssh-keygen -q -t ed25519 -a 100 -N '' -C "$name host access" -f "$key"
+fi
+chmod 0600 "$key"
+
+public_key="$(<"$key.pub")"
+sed "s|__SSH_PUBLIC_KEY__|$public_key|" "$root_dir/cloud-init.yaml.tmpl" > "$rendered"
+
+echo "Creating $name ($cpus CPU, $memory RAM, $disk disk)..."
+multipass launch 24.04 \
+  --name "$name" \
+  --cpus "$cpus" \
+  --memory "$memory" \
+  --disk "$disk" \
+  --cloud-init "$rendered"
+
+echo 'Waiting for Ubuntu Desktop and the agent harnesses to provision...'
+echo 'A first graphical build commonly takes 25-50 minutes.'
+multipass exec "$name" -- cloud-init status --wait
+echo "Ready. Open a harness with: DEVBOX_NAME=$name make gui SESSION=codex"

@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+root_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+provider="${1:-}"
+
+case "$provider" in
+  codex|claude|gemini|copilot|github)
+    exec "$root_dir/bin/connect" agent-auth "$provider"
+    ;;
+  "")
+    printf '%s\n' \
+      'Choose one provider:' \
+      '  make login PROVIDER=codex' \
+      '  make login PROVIDER=claude' \
+      '  make login PROVIDER=gemini' \
+      '  make login PROVIDER=copilot' \
+      '  make login PROVIDER=github'
+    ;;
+  *)
+    echo "Unknown provider: $provider" >&2
+    exit 2
+    ;;
+esac

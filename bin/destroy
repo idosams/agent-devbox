@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+source "$(dirname "${BASH_SOURCE[0]}")/_lib"
+name="$(devbox_name)"
+require_instance "$name"
+root_dir="$(devbox_root)"
+ip="$(devbox_ip "$name")"
+
+cat <<EOF
+This permanently deletes only the Multipass VM '$name', including repositories
+and cached agent credentials. Remote sessions are NOT revoked.
+Type the VM name to continue:
+EOF
+read -r confirmation
+if [[ "$confirmation" != "$name" ]]; then
+  echo 'Cancelled.'
+  exit 0
+fi
+multipass delete --purge "$name"
+if [[ -n "$ip" && -f "$root_dir/state/known_hosts" ]]; then
+  ssh-keygen -q -R "$ip" -f "$root_dir/state/known_hosts" >/dev/null
+fi
+echo "Deleted VM '$name'. The host-only access key remains under state/."

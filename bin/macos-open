@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+virtualbuddy_app="${VIRTUALBUDDY_APP_PATH:-/Applications/VirtualBuddy.app}"
+
+if [[ ! -d "$virtualbuddy_app" ]]; then
+  echo 'VirtualBuddy is not installed. Run make macos-install first.' >&2
+  exit 1
+fi
+
+if [[ "${AGENT_DEVBOX_NO_OPEN:-0}" != 1 ]]; then
+  open -a VirtualBuddy
+fi

@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+source "$(dirname "${BASH_SOURCE[0]}")/_lib"
+name="$(devbox_name)"
+require_instance "$name"
+multipass start "$name"

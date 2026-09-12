@@ -1,0 +1,4 @@
+state/
+macos/*.local
+*.log
+.DS_Store

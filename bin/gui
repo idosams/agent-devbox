@@ -1,0 +1,88 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+source "$(dirname "${BASH_SOURCE[0]}")/_lib"
+root_dir="$(devbox_root)"
+name="$(devbox_name)"
+session="${1:-${SESSION:-}}"
+
+case "$session" in
+  codex) user=codex-agent ;;
+  claude) user=claude-agent ;;
+  dev) user=dev ;;
+  "")
+    printf '%s\n' \
+      'Choose a graphical session:' \
+      '  make gui SESSION=codex' \
+      '  make gui SESSION=claude' \
+      '  make gui SESSION=dev'
+    exit 0
+    ;;
+  *)
+    echo "Unknown GUI session: $session" >&2
+    exit 2
+    ;;
+esac
+
+require_instance "$name"
+if ! multipass info "$name" | grep -q 'State:.*Running'; then
+  multipass start "$name"
+fi
+
+ip="$(devbox_ip "$name")"
+test -n "$ip"
+password="$(multipass exec "$name" -- sudo \
+  /usr/local/sbin/agent-devbox-rdp-credential "$user")"
+test -n "$password"
+
+state_dir="$root_dir/state"
+rdp_file="$state_dir/${name}-${session}.rdp"
+mkdir -p "$state_dir"
+chmod 0700 "$state_dir"
+umask 077
+
+{
+  printf '%s\n' \
+    "full address:s:$ip" \
+    "username:s:$user" \
+    'prompt for credentials:i:1' \
+    'screen mode id:i:2' \
+    'use multimon:i:0' \
+    'dynamic resolution:i:1' \
+    'session bpp:i:24' \
+    'audiomode:i:2' \
+    'audiocapturemode:i:0' \
+    'redirectclipboard:i:0' \
+    'redirectprinters:i:0' \
+    'redirectsmartcards:i:0' \
+    'redirectcomports:i:0' \
+    'redirectlocation:i:0' \
+    'drivestoredirect:s:'
+} > "$rdp_file"
+chmod 0600 "$rdp_file"
+
+fingerprint="$(multipass exec "$name" -- sudo bash -lc \
+  "openssl x509 -in /etc/xrdp/cert.pem -noout -fingerprint -sha256 2>/dev/null || true")"
+
+printf '%s\n' \
+  '' \
+  "Ubuntu desktop: $ip:3389" \
+  "Session:        $session" \
+  "Username:       $user" \
+  "Password:       $password" \
+  "TLS cert:       ${fingerprint:-unavailable}" \
+  '' \
+  'The RDP file disables clipboard, drive, printer, smart-card, location, and audio redirection.'
+
+if [[ "$(uname -s)" == Darwin ]]; then
+  if open -Ra 'Windows App' >/dev/null 2>&1; then
+    open -a 'Windows App' "$rdp_file"
+  else
+    printf '%s\n' \
+      '' \
+      'Install Microsoft Windows App, then run this command again:' \
+      'https://apps.apple.com/app/windows-app/id1295203466'
+  fi
+else
+  echo "Open this file in an RDP client: $rdp_file"
+fi

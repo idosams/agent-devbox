@@ -1,0 +1,77 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+source "$(dirname "${BASH_SOURCE[0]}")/_lib"
+name="$(devbox_name)"
+
+if ! command -v multipass >/dev/null 2>&1; then
+  echo 'FAIL host: multipass is not installed'
+  exit 1
+fi
+echo "OK host: $(multipass version | head -n 1)"
+require_instance "$name"
+multipass info "$name"
+
+if ! multipass info "$name" | grep -q 'State:.*Running'; then
+  echo 'VM is stopped; start it with make start.'
+  exit 1
+fi
+
+echo
+echo 'Cloud-init:'
+multipass exec "$name" -- cloud-init status
+
+echo
+echo 'Installed tools:'
+multipass exec "$name" -- bash -lc '
+  set -u
+  printf "codex:   "; sudo -u codex-agent -H /opt/agent-cli/bin/codex-real --version || true
+  printf "claude:  "; sudo -u claude-agent -H /usr/bin/claude --version || true
+  printf "gemini:  "; sudo -u gemini-agent -H /opt/agent-cli/bin/gemini --version || true
+  printf "copilot: "; sudo -u copilot-agent -H /opt/agent-cli/bin/copilot --version || true
+  printf "node:    "; /snap/bin/node --version || true
+  printf "python:  "; python3 --version || true
+  printf "go:      "; go version || true
+  printf "podman:  "; podman --version || true
+  printf "ChatGPT desktop: "; command -v chatgpt || true
+  printf "Claude desktop:  "; command -v claude-desktop || true
+  printf "xrdp:            "; systemctl is-active xrdp || true
+  if test -c /dev/kvm && sudo -u claude-agent -H test -r /dev/kvm && sudo -u claude-agent -H test -w /dev/kvm; then
+    echo "Claude Cowork KVM: available"
+  else
+    echo "Claude Cowork KVM: unavailable (Code/Chat still supported)"
+  fi
+  printf "ufw:     "; sudo ufw status | head -n 1
+'
+
+echo
+echo 'Isolation checks:'
+multipass exec "$name" -- bash -lc '
+  set -euo pipefail
+  sudo visudo -cf /etc/sudoers.d/agent-runners >/dev/null
+  jq -e . /etc/claude-code/managed-settings.json >/dev/null
+  command -v chatgpt >/dev/null
+  command -v claude-desktop >/dev/null
+  systemctl is-active --quiet xrdp
+  ss -ltnH | awk "\$4 ~ /:3389$/ { found=1 } END { exit !found }"
+  test "$(stat -c %a /var/lib/agent-devbox/rdp-credentials)" = 600
+  sudo ufw status | grep -q '3389/tcp'
+  test "$(stat -c %a /home/dev)" = 700
+  for user in dev codex-agent claude-agent; do
+    test "$(passwd -S "$user" | awk "{ print \$2 }")" = P
+  done
+  for user in codex-agent claude-agent gemini-agent copilot-agent; do
+    if id -nG "$user" | tr " " "\n" | grep -qx sudo; then
+      echo "FAIL: $user belongs to sudo" >&2
+      exit 1
+    fi
+    if sudo -u "$user" -H test -r /home/dev/.ssh; then
+      echo "FAIL: $user can read dev SSH credentials" >&2
+      exit 1
+    fi
+  done
+  echo "OK: sudoers and managed JSON parse"
+  echo "OK: agent users have no sudo group"
+  echo "OK: agent users cannot read dev SSH credentials"
+  echo "OK: graphical harnesses and restricted RDP are active"
+'
