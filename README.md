@@ -110,6 +110,7 @@ test.
 - [Architecture](docs/ARCHITECTURE.md)
 - [Threat model](docs/THREAT_MODEL.md)
 - [Compatibility](docs/COMPATIBILITY.md)
+- [Included stack](docs/STACK.md)
 - [Supply-chain policy](docs/SUPPLY_CHAIN.md)
 - [Troubleshooting](docs/TROUBLESHOOTING.md)
 - [Launch playbook](docs/LAUNCH.md)
