@@ -112,6 +112,7 @@ test.
 - [Compatibility](docs/COMPATIBILITY.md)
 - [Supply-chain policy](docs/SUPPLY_CHAIN.md)
 - [Troubleshooting](docs/TROUBLESHOOTING.md)
+- [Launch playbook](docs/LAUNCH.md)
 - [Contributing](CONTRIBUTING.md)
 - [Security policy](SECURITY.md)
 - [Release checklist](RELEASE.md)

@@ -1,0 +1,70 @@
+name: Installation report
+description: Record a successful or partially successful clean installation.
+title: "[Install]: "
+labels: [installation-report]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for helping validate Agent Devbox on real hardware.
+        Do not include account names, IP addresses, private paths, credentials, keys, VM images, or unredacted logs.
+  - type: dropdown
+    id: profile
+    attributes:
+      label: Profile
+      options:
+        - macOS + VirtualBuddy
+        - Ubuntu + Multipass
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Agent Devbox version or commit
+      placeholder: v0.1.0-alpha.1 or commit SHA
+    validations:
+      required: true
+  - type: input
+    id: host
+    attributes:
+      label: Host hardware and operating system
+      placeholder: Apple M3 Pro, 36 GB RAM, macOS 26.0
+    validations:
+      required: true
+  - type: input
+    id: guest
+    attributes:
+      label: Guest operating system
+      placeholder: macOS 26.0 or Ubuntu 24.04 LTS
+    validations:
+      required: true
+  - type: checkboxes
+    id: result
+    attributes:
+      label: Result
+      options:
+        - label: VM installation completed.
+        - label: Guest bootstrap completed.
+        - label: Bootstrap completed a second time without breaking the guest.
+        - label: An agent UI or RDP session launched successfully.
+        - label: The relevant doctor command passed.
+  - type: textarea
+    id: failures
+    attributes:
+      label: Failures or unclear instructions
+      description: Include only redacted output. Write "None" if the full path worked.
+    validations:
+      required: true
+  - type: textarea
+    id: notes
+    attributes:
+      label: Additional compatibility notes
+  - type: checkboxes
+    id: safety
+    attributes:
+      label: Safety check
+      options:
+        - label: I removed credentials, private paths, keys, IP addresses, VM images, and account data.
+          required: true
+        - label: This report does not describe a security vulnerability.
+          required: true
