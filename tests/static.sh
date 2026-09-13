@@ -21,7 +21,8 @@ ruby -e '
   "$root_dir/.github/workflows/ci.yml" \
   "$root_dir/.github/dependabot.yml" \
   "$root_dir/.github/ISSUE_TEMPLATE/config.yml" \
-  "$root_dir/.github/ISSUE_TEMPLATE/bug_report.yml"
+  "$root_dir/.github/ISSUE_TEMPLATE/bug_report.yml" \
+  "$root_dir/.github/ISSUE_TEMPLATE/installation_report.yml"
 
 "$root_dir/tests/check-links.rb"
 
@@ -74,6 +75,13 @@ rg -q 'ForwardAgent=no' "$root_dir/bin/macos-bootstrap"
 rg -q 'ClearAllForwardings=yes' "$root_dir/bin/macos-bootstrap"
 rg -q 'VirtualBuddyGuest' "$root_dir/macos/guest-doctor.sh"
 rg -q 'TeamIdentifier' "$root_dir/macos/guest-doctor.sh"
+rg -q 'formulae\+=\(' "$root_dir/macos/guest-bootstrap.sh"
+rg -q 'docker-buildx' "$root_dir/macos/guest-bootstrap.sh"
+rg -q 'Docker mode is' "$root_dir/macos/guest-doctor.sh"
+if rg -q 'brew install --cask.*docker|^[[:space:]]+docker-desktop$' "$root_dir/macos/guest-bootstrap.sh"; then
+  echo 'The macOS profile must not claim a local Docker Desktop runtime.' >&2
+  exit 1
+fi
 
 dummy_key='ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIK9mVZgNq0gX0testonlynotasecret release-test'
 rendered="$(mktemp -t agent-devbox-cloud-init-test.XXXXXX)"

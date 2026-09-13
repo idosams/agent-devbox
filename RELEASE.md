@@ -28,6 +28,12 @@
 - [ ] Shared folders, Guest App, clipboard, bridged network, audio input,
       camera, and USB remain disabled.
 - [ ] Remote Login is off after validation.
+- [ ] `DOCKER=remote` installs CLI, Compose, and Buildx without Docker Desktop
+      or a local daemon socket.
+- [ ] A remote Docker context, when tested, targets only a disposable worker
+      and never the physical Mac or a production daemon.
+- [ ] `PARALLEL=1` recommendations are checked on a host with at least 24 GB
+      RAM while the intended second VM is running.
 
 ## Manual Ubuntu matrix
 

@@ -2,6 +2,14 @@
 set -euo pipefail
 
 fail=0
+docker_mode="${AGENT_DEVBOX_DOCKER_MODE:-none}"
+case "$docker_mode" in
+  none|remote) ;;
+  *)
+    echo "FAIL guest: invalid Docker mode '$docker_mode'"
+    exit 2
+    ;;
+esac
 model="$(sysctl -n hw.model 2>/dev/null || true)"
 if [[ "$model" == VirtualMac* ]]; then
   echo "OK guest: $model"
@@ -18,6 +26,32 @@ for app in ChatGPT Claude 'Visual Studio Code'; do
     fail=1
   fi
 done
+
+recorded_docker_mode="$(cat /etc/agent-devbox-docker-mode 2>/dev/null || printf none)"
+if [[ "$recorded_docker_mode" == "$docker_mode" ]]; then
+  echo "OK guest: Docker mode is $docker_mode"
+else
+  echo "FAIL guest: Docker mode is '$recorded_docker_mode', expected '$docker_mode'"
+  fail=1
+fi
+
+if [[ "$docker_mode" == remote ]]; then
+  for tool in docker docker-compose docker-buildx; do
+    if PATH="/opt/homebrew/bin:/opt/homebrew/sbin:$PATH" command -v "$tool" >/dev/null 2>&1; then
+      echo "OK guest remote Docker tool: $tool"
+    else
+      echo "FAIL guest remote Docker tool: $tool is missing"
+      fail=1
+    fi
+  done
+fi
+
+if [[ -d /Applications/Docker.app ]] || [[ -S /var/run/docker.sock ]]; then
+  echo 'FAIL isolation: a local Docker Desktop app or daemon socket is present'
+  fail=1
+else
+  echo 'OK isolation: no local Docker Desktop app or daemon socket'
+fi
 
 for tool in brew claude gh git node python3 rg; do
   if PATH="/opt/homebrew/bin:/opt/homebrew/sbin:$PATH" command -v "$tool" >/dev/null 2>&1; then

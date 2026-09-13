@@ -15,6 +15,7 @@ macOS, Ubuntu, VirtualBuddy, or vendor agent applications.
 | Claude Desktop/Code | Homebrew casks or Anthropic apt repository | Homebrew checksum/code signing or pinned apt signing-key fingerprint |
 | Ubuntu | Multipass image catalog | Multipass/Canonical image verification |
 | Gemini and Copilot CLIs | npm registry | Package-manager integrity metadata |
+| Optional Docker CLI/Compose/Buildx | Homebrew formulae | Homebrew bottle checksums; no daemon installed |
 
 ## Rolling versus pinned inputs
 

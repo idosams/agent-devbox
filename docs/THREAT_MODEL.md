@@ -55,6 +55,8 @@ separate boundaries.
 - Theft or misuse of credentials intentionally entered in the guest
 - Data exfiltration over allowed internet access
 - Destructive changes to guest files or remote repositories/accounts
+- Container escape or daemon compromise on a Docker host selected by a remote
+  context
 - A user enabling shared folders, clipboard, bridged networking, devices, or
   broad credentials after setup
 - Malicious updates downloaded from trusted package or vendor channels
@@ -66,6 +68,11 @@ separate boundaries.
 Keep production cloud administrator credentials, password vaults, signing keys,
 and unrestricted GitHub tokens out of the VM. If a task needs one of them, use
 a short-lived, narrowly scoped credential and revoke it after the task.
+
+Treat a remote Docker context as privileged access to that Docker host. Use a
+dedicated disposable worker, a restricted identity, and a guest-only SSH key.
+Never connect the agent VM to the physical Mac's Docker socket or a production
+container daemon.
 
 Do not expose VM services through router port forwarding, public tunnels, or
 bridged networking without designing a separate network policy.

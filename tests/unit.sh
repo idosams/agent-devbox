@@ -33,10 +33,31 @@ assert_contains "$output" 'Memory:      7 GB'
 assert_contains "$output" 'Disk:        120 GB sparse'
 assert_contains "$output" 'latest stable macOS supported by this host'
 
+parallel_output="$(
+  VIRTUALBUDDY_APP_PATH="$test_dir/VirtualBuddy.app" \
+  AGENT_DEVBOX_NO_OPEN=1 \
+  MACOS_DOCKER_MODE=remote \
+  MACOS_PARALLEL_VMS=1 \
+  "$root_dir/bin/macos-create"
+)"
+assert_contains "$parallel_output" 'Parallel VMs: enabled'
+assert_contains "$parallel_output" 'Docker mode:  remote'
+assert_contains "$parallel_output" 'Docker remote mode installs only Docker CLI, Compose, and Buildx'
+
 if VIRTUALBUDDY_APP_PATH="$test_dir/VirtualBuddy.app" \
   AGENT_DEVBOX_NO_OPEN=1 MACOS_VM_CPUS=oops \
   "$root_dir/bin/macos-create" >/dev/null 2>&1; then
   fail 'macos-create accepted a non-numeric CPU value'
+fi
+if VIRTUALBUDDY_APP_PATH="$test_dir/VirtualBuddy.app" \
+  AGENT_DEVBOX_NO_OPEN=1 MACOS_DOCKER_MODE=desktop \
+  "$root_dir/bin/macos-create" >/dev/null 2>&1; then
+  fail 'macos-create accepted an unsupported Docker mode'
+fi
+if VIRTUALBUDDY_APP_PATH="$test_dir/VirtualBuddy.app" \
+  AGENT_DEVBOX_NO_OPEN=1 MACOS_PARALLEL_VMS=yes \
+  "$root_dir/bin/macos-create" >/dev/null 2>&1; then
+  fail 'macos-create accepted an invalid parallel-VM flag'
 fi
 
 VIRTUALBUDDY_APP_PATH="$test_dir/VirtualBuddy.app" \
@@ -65,6 +86,8 @@ fi
 
 help_output="$(make -s -C "$root_dir" help)"
 assert_contains "$help_output" 'make macos-create'
+assert_contains "$help_output" 'DOCKER=none|remote'
+assert_contains "$help_output" 'PARALLEL=0|1'
 assert_contains "$help_output" 'make linux-create'
 assert_contains "$help_output" 'make test'
 

@@ -14,9 +14,15 @@
 `make macos-create` detects host resources. Override its recommendation with
 `MACOS_VM_CPUS`, `MACOS_VM_MEMORY_GIB`, and `MACOS_VM_DISK_GIB`.
 
-Apple documents nested virtualization for M3 and later hardware. This project
-does not promise nested-VM support because the VM manager and guest application
-must also expose and use it.
+For M4 and other higher-memory hosts, `PARALLEL=1` caps the macOS guest's
+automatic recommendation so resources remain available for a second VM. At
+least 24 GB host RAM is recommended for two graphical VMs.
+
+Apple documents nested virtualization for M3 and later hardware, but
+VirtualBuddy's macOS guest configuration does not currently expose it. M4
+hardware therefore does not make Docker Desktop supported inside the macOS
+guest. `DOCKER=remote` is a client-only option for a separately secured Docker
+host.
 
 ## Ubuntu profile
 

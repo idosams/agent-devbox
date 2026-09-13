@@ -6,6 +6,18 @@ All notable changes will be documented in this file. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- Optional `DOCKER=remote` macOS guest bundle with Docker CLI, Compose, and
+  Buildx for a separately secured remote daemon.
+- `PARALLEL=1` resource recommendations for running a macOS agent VM alongside
+  a separate container VM on higher-memory Apple-silicon hosts.
+
+### Security
+
+- Explicitly reject unsupported local Docker Desktop/daemon configurations in
+  the macOS guest diagnostics; no host Docker socket is shared.
+
 ## [0.1.0] - Unreleased
 
 ### Added

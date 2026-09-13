@@ -27,8 +27,8 @@ Authentication is always performed manually inside the guest.
 | Python | System Python only | Python 3.13 installed | Optional | Python 3, pip, venv, and pipx installed |
 | Go | Not installed by this project | Installed | Optional | Installed |
 | Rust | Not installed by this project | Installed with Cargo | Optional | Installed with Cargo |
-| Containers | No host socket is shared | Not installed | No host socket is shared | Podman installed |
-| Docker Engine/Desktop | Not installed | Not supported by the default profile | Not installed | Not installed |
+| Containers | No host socket is shared | Optional remote Docker clients | No host socket is shared | Podman installed |
+| Docker Engine/Desktop | Not installed | Unsupported; remote daemon only | Not installed | Not installed |
 
 ## macOS guest
 
@@ -57,17 +57,26 @@ Safari is supplied by macOS. Chrome, Firefox, databases, cloud-provider CLIs,
 Kubernetes tools, package-manager globals, editor extensions, and language
 version managers are not currently installed.
 
-### Why Docker is absent on macOS
+Use `DOCKER=remote` during create, bootstrap, and doctor commands to add these
+client tools:
 
-The project targets Macs that include M1 and M2 systems. Docker Desktop inside
-a macOS VM depends on another virtualization layer. Nested virtualization is
-not available on those hosts, and hardware support on newer Macs does not by
-itself guarantee support through every guest and hypervisor combination.
+```text
+docker  docker compose  docker buildx
+```
 
-Installing Docker Desktop in the default macOS guest would therefore make the
-documented stack unreliable. Use the Ubuntu profile for containers, or use a
-separate remote container host. Never expose the everyday Mac's Docker socket
-to an agent VM.
+They require a separately secured remote Docker context. There is no local
+daemon and the physical Mac's Docker socket must never be forwarded.
+
+### Why a local Docker runtime is absent on macOS
+
+Docker Desktop inside a macOS VM depends on another virtualization layer.
+Apple provides nested virtualization hardware support on M3 and later, but
+VirtualBuddy does not currently expose that capability to macOS guests.
+
+Installing Docker Desktop in the macOS guest would therefore make the
+documented stack misleading. Use the Ubuntu profile for local containers, or
+use `DOCKER=remote` with a separate container host. Never expose the everyday
+Mac's Docker socket to an agent VM.
 
 ## Ubuntu guest
 

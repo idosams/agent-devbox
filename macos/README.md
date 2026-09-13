@@ -37,6 +37,24 @@ MACOS_VM_NAME='Agent Mac' \
 make macos-create
 ```
 
+### M4 and parallel-VM profile
+
+An M4 host has the hardware capability for nested virtualization, but
+VirtualBuddy does not currently expose nested virtualization to its macOS
+guests. Docker Desktop therefore remains unsupported inside this macOS VM.
+
+For a work Mac with at least 24 GB RAM, use parallel mode to keep resources
+available for a separate Ubuntu container VM and install the remote Docker
+client bundle in the macOS guest:
+
+```bash
+make macos-create DOCKER=remote PARALLEL=1
+```
+
+`PARALLEL=1` changes only the resource recommendation. It does not start a
+second VM. `DOCKER=remote` installs Docker CLI, Compose, and Buildx, without a
+local daemon.
+
 In VirtualBuddy, select the latest **stable** macOS restore image that it marks
 as supported by the host. Apply the printed CPU, memory, and disk values, then
 set:
@@ -85,6 +103,12 @@ Back on the host:
 
 ```bash
 make macos-bootstrap HOST=VM_IP
+```
+
+If the VM was created with the remote Docker bundle, preserve that choice:
+
+```bash
+make macos-bootstrap HOST=VM_IP DOCKER=remote
 ```
 
 The SSH host key is stored only in the ignored `state/macos_known_hosts` file.
@@ -139,6 +163,18 @@ cached OpenAI login state; keep the entire guest disk protected accordingly.
 For GitHub, prefer a dedicated account or a fine-grained token/SSH key that can
 access only the repositories needed in this VM.
 
+For remote Docker tooling, create a context only after the clean VM clone:
+
+```bash
+docker context create agent-worker --docker host=ssh://USER@CONTAINER_HOST
+docker context use agent-worker
+docker info
+```
+
+The SSH key and remote context are guest credentials. Restrict the remote user
+and daemon to disposable development workloads. Do not point the context at
+the physical Mac, a production host, or an unrestricted shared daemon.
+
 Never import or expose these host resources:
 
 - Apple Account, iCloud Drive, login keychain, or browser profile
@@ -158,6 +194,8 @@ temporarily enable Remote Login and run:
 
 ```bash
 make macos-doctor HOST=VM_IP
+# Or, when provisioned with the remote Docker bundle:
+make macos-doctor HOST=VM_IP DOCKER=remote
 ```
 
 Disable Remote Login again afterward.
@@ -171,10 +209,11 @@ installer follow their current stable channels. Review the
 
 ## Nested virtualization
 
-Apple exposes nested virtualization on M3 and later hosts. Hardware support
-does not guarantee that VirtualBuddy or a specific guest application exposes
-or uses it. On M1 and M2 hosts, features that insist on launching a second
-hardware-virtualized VM inside the guest may fail. Normal desktop, terminal,
+Apple exposes nested virtualization on M3 and later hosts for generic platform
+configurations. VirtualBuddy's current macOS guest path uses
+`VZMacPlatformConfiguration` and does not expose a nested-virtualization
+setting. Consequently, this project does not install Docker Desktop or other
+VM-backed container runtimes inside the macOS guest. Normal desktop, terminal,
 editor, browser, diff, and preview workflows do not require nested VMs.
 
 ## Recovery

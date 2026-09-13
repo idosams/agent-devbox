@@ -4,6 +4,7 @@ set -euo pipefail
 root_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 guest_host="${MACOS_VM_HOST:-}"
 guest_user="${MACOS_VM_USER:-vm-admin}"
+docker_mode="${MACOS_DOCKER_MODE:-none}"
 known_hosts="$root_dir/state/macos_known_hosts"
 remote_script='/tmp/agent-devbox-bootstrap.sh'
 remote_config='/tmp/agent-devbox-codex-config.toml'
@@ -21,6 +22,13 @@ if [[ ! "$guest_user" =~ ^[a-z_][a-z0-9_-]*$ ]]; then
   echo "Invalid guest user '$guest_user'." >&2
   exit 2
 fi
+case "$docker_mode" in
+  none|remote) ;;
+  *)
+    echo "Invalid MACOS_DOCKER_MODE '$docker_mode'; use none or remote." >&2
+    exit 2
+    ;;
+esac
 
 mkdir -p "$root_dir/state"
 chmod 0700 "$root_dir/state"
@@ -48,7 +56,7 @@ scp "${ssh_opts[@]}" "$root_dir/macos/codex-config.toml" "$target:$remote_config
 scp "${ssh_opts[@]}" "$root_dir/macos/guest-doctor.sh" "$target:$remote_doctor"
 
 echo 'Provisioning the guest. macOS may request the vm-admin password.'
-ssh -t "${ssh_opts[@]}" "$target" "chmod 0700 '$remote_script' '$remote_doctor'; CODEX_CONFIG_SOURCE='$remote_config' '$remote_script' && '$remote_doctor'; result=\$?; rm -f '$remote_script' '$remote_config' '$remote_doctor'; exit \$result"
+ssh -t "${ssh_opts[@]}" "$target" "chmod 0700 '$remote_script' '$remote_doctor'; CODEX_CONFIG_SOURCE='$remote_config' AGENT_DEVBOX_DOCKER_MODE='$docker_mode' '$remote_script' && AGENT_DEVBOX_DOCKER_MODE='$docker_mode' '$remote_doctor'; result=\$?; rm -f '$remote_script' '$remote_config' '$remote_doctor'; exit \$result"
 
 echo
 read -r -p 'Disable Remote Login in the guest now? [Y/n] ' answer

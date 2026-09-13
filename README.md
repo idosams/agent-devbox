@@ -35,6 +35,13 @@ make macos-install
 make macos-create
 ```
 
+On a higher-memory M4 work Mac, reserve resources for a second VM and install
+remote Docker tooling in the macOS guest with:
+
+```bash
+make macos-create DOCKER=remote PARALLEL=1
+```
+
 `make macos-create` detects the host resources and prints recommended VM
 settings before opening VirtualBuddy. Complete Apple's graphical installer,
 create the required `vm-admin` and `agent` users, then provision the guest:
@@ -42,6 +49,17 @@ create the required `vm-admin` and `agent` users, then provision the guest:
 ```bash
 make macos-bootstrap HOST=VM_IP
 ```
+
+Use the same Docker mode during provisioning and diagnostics:
+
+```bash
+make macos-bootstrap HOST=VM_IP DOCKER=remote
+make macos-doctor HOST=VM_IP DOCKER=remote
+```
+
+`DOCKER=remote` installs Docker CLI, Compose, and Buildx. It does not install
+Docker Desktop or a daemon inside the macOS VM. Point it only at a separately
+secured remote/container VM; never expose the physical Mac's Docker socket.
 
 All ChatGPT, Codex, Claude, GitHub, and other sign-ins happen inside the
 standard `agent` account in the VM. Do not migrate a host profile or enable
@@ -58,6 +76,7 @@ The macOS guest receives:
 - Claude Desktop and Claude Code
 - Codex CLI using the macOS keychain for cached credentials
 - VS Code, GitHub CLI, Git, Node.js, Python, Go, Rust, and shell utilities
+- optional Docker CLI, Compose, and Buildx for a restricted remote context
 - a guest-only `/Users/Shared/AgentWorkspaces` directory
 
 The Ubuntu guest adds separate `codex-agent`, `claude-agent`, `gemini-agent`,

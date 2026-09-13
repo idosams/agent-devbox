@@ -1,5 +1,7 @@
 SHELL := /bin/bash
 VM_USER ?= vm-admin
+DOCKER ?= none
+PARALLEL ?= 0
 .DEFAULT_GOAL := help
 
 .PHONY: help test lint macos-install macos-create macos-open macos-bootstrap \
@@ -13,9 +15,9 @@ help:
 		'' \
 		'macOS full-UI profile:' \
 		'  make macos-install' \
-		'  make macos-create' \
-		'  make macos-bootstrap HOST=<guest-ip> [VM_USER=vm-admin]' \
-		'  make macos-doctor [HOST=<guest-ip>]' \
+		'  make macos-create [DOCKER=none|remote] [PARALLEL=0|1]' \
+		'  make macos-bootstrap HOST=<guest-ip> [VM_USER=vm-admin] [DOCKER=none|remote]' \
+		'  make macos-doctor [HOST=<guest-ip>] [DOCKER=none|remote]' \
 		'  make macos-open' \
 		'' \
 		'Ubuntu profile:' \
@@ -38,16 +40,16 @@ macos-install:
 	./bin/macos-install-host
 
 macos-create:
-	./bin/macos-create
+	MACOS_DOCKER_MODE="$(DOCKER)" MACOS_PARALLEL_VMS="$(PARALLEL)" ./bin/macos-create
 
 macos-open:
 	./bin/macos-open
 
 macos-bootstrap:
-	MACOS_VM_HOST="$(HOST)" MACOS_VM_USER="$(VM_USER)" ./bin/macos-bootstrap
+	MACOS_VM_HOST="$(HOST)" MACOS_VM_USER="$(VM_USER)" MACOS_DOCKER_MODE="$(DOCKER)" ./bin/macos-bootstrap
 
 macos-doctor:
-	MACOS_VM_HOST="$(HOST)" MACOS_VM_USER="$(VM_USER)" ./bin/macos-doctor
+	MACOS_VM_HOST="$(HOST)" MACOS_VM_USER="$(VM_USER)" MACOS_DOCKER_MODE="$(DOCKER)" ./bin/macos-doctor
 
 linux-create: create
 

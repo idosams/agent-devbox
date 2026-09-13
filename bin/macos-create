@@ -3,6 +3,23 @@ set -euo pipefail
 
 root_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 virtualbuddy_app="${VIRTUALBUDDY_APP_PATH:-/Applications/VirtualBuddy.app}"
+docker_mode="${MACOS_DOCKER_MODE:-none}"
+parallel_vms="${MACOS_PARALLEL_VMS:-0}"
+
+case "$docker_mode" in
+  none|remote) ;;
+  *)
+    echo "Invalid MACOS_DOCKER_MODE '$docker_mode'; use none or remote." >&2
+    exit 2
+    ;;
+esac
+case "$parallel_vms" in
+  0|1) ;;
+  *)
+    echo "Invalid MACOS_PARALLEL_VMS '$parallel_vms'; use 0 or 1." >&2
+    exit 2
+    ;;
+esac
 
 if [[ ! -d "$virtualbuddy_app" ]]; then
   echo 'VirtualBuddy is not installed. Run make macos-install first.' >&2
@@ -46,10 +63,27 @@ default_cpus=$((host_cpus - 2))
 (( default_cpus > 6 )) && default_cpus=6
 (( default_cpus < 2 )) && default_cpus=2
 
+if [[ "$parallel_vms" == 1 ]]; then
+  (( default_cpus > 4 )) && default_cpus=4
+  if (( host_memory_gib <= 16 )); then
+    default_memory_gib=6
+  elif (( host_memory_gib <= 24 )); then
+    default_memory_gib=8
+  else
+    default_memory_gib=12
+  fi
+fi
+
 cpus="${MACOS_VM_CPUS:-$default_cpus}"
 memory_gib="${MACOS_VM_MEMORY_GIB:-$default_memory_gib}"
 disk_gib="${MACOS_VM_DISK_GIB:-100}"
 vm_name="${MACOS_VM_NAME:-Agent Mac}"
+
+chip='unknown Apple silicon'
+if command -v system_profiler >/dev/null 2>&1; then
+  detected_chip="$(system_profiler SPHardwareDataType 2>/dev/null | awk -F': ' '/Chip:/ { print $2; exit }')"
+  [[ -n "$detected_chip" ]] && chip="$detected_chip"
+fi
 
 for value_name in cpus memory_gib disk_gib; do
   value="${!value_name}"
@@ -77,6 +111,10 @@ Create a VM named "$vm_name" with these settings:
   Microphone:  Off
   USB:         None
 
+Host chip:     $chip
+Parallel VMs: $([[ "$parallel_vms" == 1 ]] && printf enabled || printf disabled)
+Docker mode:  $docker_mode
+
 During macOS Setup Assistant:
   - do not sign in to an Apple Account
   - create the administrator account "vm-admin"
@@ -84,6 +122,28 @@ During macOS Setup Assistant:
 
 Then follow the "First boot" section of macos/README.md.
 EOF
+
+if [[ "$parallel_vms" == 1 ]]; then
+  if (( host_memory_gib < 24 )); then
+    echo 'WARNING: parallel macOS and Ubuntu desktop VMs are likely memory constrained below 24 GB.'
+  fi
+  cat <<'EOF'
+
+Parallel mode reserves more host CPU and memory for a second VM. It does not
+start that VM automatically. Use the Ubuntu profile as the local container
+worker, or configure a separately secured remote Docker host.
+EOF
+fi
+
+if [[ "$docker_mode" == remote ]]; then
+  cat <<'EOF'
+
+Docker remote mode installs only Docker CLI, Compose, and Buildx in the macOS
+guest. It does not install Docker Desktop or a local daemon. Configure a remote
+Docker context after guest provisioning. Never connect it to the host's Docker
+socket.
+EOF
+fi
 
 if [[ "${AGENT_DEVBOX_NO_OPEN:-0}" != 1 ]]; then
   open -a VirtualBuddy

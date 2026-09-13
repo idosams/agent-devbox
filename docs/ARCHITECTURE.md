@@ -12,12 +12,14 @@ flowchart LR
   NAT["Shared/NAT network"]
   MacVM["macOS VM\nvm-admin + standard agent"]
   LinuxVM["Ubuntu VM\ndev + provider users"]
+  DockerHost["Optional disposable\nDocker worker"]
   Providers["OpenAI, Anthropic, GitHub, etc."]
 
   Host -->|"VirtualBuddy window\nno shared folders"| MacVM
   Host -->|"RDP/SSH\nno agent forwarding"| LinuxVM
   MacVM --> NAT --> Providers
   LinuxVM --> NAT
+  MacVM -. "restricted SSH Docker context\nDOCKER=remote only" .-> DockerHost
 ```
 
 ## macOS profile
@@ -37,6 +39,12 @@ The host bootstrap process then:
 
 Normal work happens as `agent`. `vm-admin` exists only for updates and repair.
 Source code lives on the guest disk under `/Users/Shared/AgentWorkspaces`.
+
+The optional `DOCKER=remote` mode adds client tools only. It deliberately keeps
+the container daemon outside the macOS VM because VirtualBuddy does not expose
+nested virtualization to macOS guests. `PARALLEL=1` reserves host resources for
+a separate Ubuntu/container VM but does not create trust or network access
+between the two VMs automatically.
 
 ## Ubuntu profile
 
@@ -76,6 +84,8 @@ as their matching identity but cannot become root. Multipass's internal
   cloud-credential profile from the host.
 - Graphical OS installation remains manual; post-install configuration should
   be idempotent and testable.
+- A remote Docker worker is a separate security boundary with its own narrowly
+  scoped SSH identity; the physical Mac's Docker socket is never a worker.
 
 See [Threat model](THREAT_MODEL.md) for the security boundary and
 [Supply-chain policy](SUPPLY_CHAIN.md) for downloaded components.

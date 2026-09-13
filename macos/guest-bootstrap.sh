@@ -32,6 +32,14 @@ if id -Gn agent | tr ' ' '\n' | grep -qx admin; then
 fi
 
 codex_config_source="${CODEX_CONFIG_SOURCE:-/tmp/agent-devbox-codex-config.toml}"
+docker_mode="${AGENT_DEVBOX_DOCKER_MODE:-none}"
+case "$docker_mode" in
+  none|remote) ;;
+  *)
+    echo "Invalid AGENT_DEVBOX_DOCKER_MODE '$docker_mode'; use none or remote." >&2
+    exit 2
+    ;;
+esac
 if [[ ! -f "$codex_config_source" ]]; then
   echo "Missing Codex configuration: $codex_config_source" >&2
   exit 1
@@ -65,6 +73,14 @@ formulae=(
   tmux
 )
 
+if [[ "$docker_mode" == remote ]]; then
+  formulae+=(
+    docker
+    docker-buildx
+    docker-compose
+  )
+fi
+
 casks=(
   chatgpt
   claude
@@ -75,6 +91,23 @@ casks=(
 echo 'Installing development tools and agent harnesses...'
 brew install "${formulae[@]}"
 brew install --cask "${casks[@]}"
+
+if [[ "$docker_mode" == remote ]]; then
+  echo 'Configuring Docker CLI plugins for the non-admin agent user...'
+  sudo install -d -m 0700 -o agent -g staff /Users/agent/.docker
+  sudo install -d -m 0700 -o agent -g staff /Users/agent/.docker/cli-plugins
+  for plugin in docker-buildx docker-compose; do
+    plugin_source="/opt/homebrew/lib/docker/cli-plugins/$plugin"
+    if [[ ! -x "$plugin_source" ]]; then
+      echo "Expected Homebrew Docker plugin is missing: $plugin_source" >&2
+      exit 1
+    fi
+    sudo -u agent -H ln -sfn "$plugin_source" "/Users/agent/.docker/cli-plugins/$plugin"
+  done
+fi
+
+printf '%s\n' "$docker_mode" | sudo tee /etc/agent-devbox-docker-mode >/dev/null
+sudo chmod 0644 /etc/agent-devbox-docker-mode
 
 echo 'Installing Codex CLI for the non-admin agent user from OpenAI...'
 sudo -u agent -H /bin/bash -c "curl --proto '=https' --tlsv1.2 -fsSL https://chatgpt.com/codex/install.sh | sh"
@@ -97,7 +130,7 @@ sudo pmset -a womp 0 >/dev/null 2>&1 || true
 sudo /usr/libexec/ApplicationFirewall/socketfilterfw --setglobalstate on
 sudo /usr/libexec/ApplicationFirewall/socketfilterfw --setstealthmode on
 
-cat <<'EOF'
+cat <<EOF
 
 Installed successfully.
 
@@ -109,6 +142,10 @@ Before authenticating:
   4. Take a clean APFS clone named "Agent Mac - clean" in VirtualBuddy.
   5. Sign in to ChatGPT/Codex, Claude, GitHub, and any other providers only
      from inside the agent account.
+
+Docker mode: $docker_mode
+If it is "remote", configure a restricted remote Docker context as agent.
+No local Docker daemon or Docker Desktop was installed.
 
 Work only under /Users/Shared/AgentWorkspaces. Do not migrate a host profile.
 EOF
